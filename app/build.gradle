@@ -1,0 +1,25 @@
+apply plugin: 'com.android.application'
+android {
+    dexOptions {
+        javaMaxHeapSize "4g"
+    }
+    compileSdkVersion 17
+    buildToolsVersion '26.0.2'
+    defaultConfig {
+        applicationId "org.eleetas.nfc.nfcproxy"
+        minSdkVersion 15
+        targetSdkVersion 17
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+        }
+    }
+    productFlavors {
+    }
+}
+
+dependencies {
+    compile files('lib/emv-bertlv-0.1.4-SNAPSHOT-jar-with-dependencies.jar')
+}
