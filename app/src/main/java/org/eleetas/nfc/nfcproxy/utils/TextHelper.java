@@ -8,7 +8,7 @@ public class TextHelper {
         String HexString=byteArrayToHexString(b, "", "", false);
         if (HexString == null) return null;
         String HexStringUnpack=EmvBerTlvHelper.UnpackAPDU(HexString);
-        RetString.append(HexString).append("\n").append(HexStringUnpack);
+        RetString.append(HexString).append("\n").append(HexStringUnpack); //
 
         return RetString.toString();
     }

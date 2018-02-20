@@ -95,25 +95,25 @@ public class BasicTagTechnologyWrapper implements TagTechnology {
 		}
 	}	
 	
-	/*
-	public int getMaxTransceiveLength() {
-    	try {
-			return (Integer)getMaxTransceiveLength.invoke(mTagTech);
-		} catch (IllegalArgumentException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (IllegalAccessException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} catch (InvocationTargetException e) {
-			if (e.getTargetException() instanceof RuntimeException) {
-				throw (RuntimeException) e.getTargetException();
-			}
-			e.printStackTrace();
-		}
-		return 0;
-    }
-	*/
+
+//	public int getMaxTransceiveLength() {
+//    	try {
+//			return (Integer)getMaxTransceiveLength.invoke(mTagTech);
+//		} catch (IllegalArgumentException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		} catch (IllegalAccessException e) {
+//			// TODO Auto-generated catch block
+//			e.printStackTrace();
+//		} catch (InvocationTargetException e) {
+//			if (e.getTargetException() instanceof RuntimeException) {
+//				throw (RuntimeException) e.getTargetException();
+//			}
+//			e.printStackTrace();
+//		}
+//		return 0;
+//    }
+
 	public byte[] transceive(byte[] data) throws IOException {
 		try {
 			return (byte[])transceive.invoke(mTagTech, data);

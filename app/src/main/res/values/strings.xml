@@ -13,7 +13,7 @@
     <string name="crypto_error">"Crypto error. Are both sides encrypting?"</string>
     <string name="data">Data</string>
     <string name="debug_logging">Debug Logging</string>
-    <string name="default_ip">aaa.bbb.ccc.ddd</string>
+    <string name="default_ip">10.0.0.103</string>
     <string name="default_password">54321Password</string>
     <string name="default_port">9999</string>
     <string name="delete">Delete</string>
@@ -95,4 +95,10 @@
     <string name="unsupported_tag">Unsupported tag type</string>    
     <string name="waiting">Waiting for tag...</string>
     <string name="warning_plaintext">(Warning: Stored in plaintext)</string>
+
+    <string name="servicedesc">nfcproxy</string>
+    <string name="aiddescription">nfcproxy</string>
+
+
+
 </resources>
