@@ -134,11 +134,47 @@ public class MyHostApduService extends HostApduService {
     }
 
 
+    private View.OnLongClickListener getTransactionsTextViewLongClickListener() {
+        return new View.OnLongClickListener() {
+
+            @Override
+            public boolean onLongClick(View view) {
+                if (mActionMode != null) {
+                    return false;
+                }
+                view.setSelected(true);
+                mSelectedId = view.getId();
+                log("selectedID: " + mSelectedId);
+                mActionMode = nfcProxyActivity.startActionMode(nfcProxyActivity.mTransactionsActionModeCallback);
+                return true;
+            }
+        };
+    }
+
+    private View.OnLongClickListener getSavedTextViewLongClickListener() {
+        return new View.OnLongClickListener() {
+
+            @Override
+            public boolean onLongClick(View view) {
+                if (mActionMode != null) {
+                    return false;
+                }
+
+                view.setSelected(true);
+                mSelectedSaveView = view;
+                mActionMode = nfcProxyActivity.startActionMode(nfcProxyActivity.mSavedActionModeCallback);
+                return true;
+            }
+        };
+    }
     private void storeTransactionsAndBreak(Bundle requests, Bundle responses) {
+        //trans finish
+        //save data
         final Bundle session = new Bundle();
         session.putBundle("requests", requests);
         session.putBundle("responses", responses);
-//        mDataView.setOnLongClickListener(getTransactionsTextViewLongClickListener());
+        //set longclick pop menu event listener for delete export
+        mDataView.setOnLongClickListener(getTransactionsTextViewLongClickListener());
         mDataTable.post(new Runnable() {
             @Override
             public void run() {
@@ -215,6 +251,15 @@ public class MyHostApduService extends HostApduService {
             mSessions = nfcProxyActivity.mSessions;
             mStatusTab = nfcProxyActivity.mStatusTab;
             mDataTab = nfcProxyActivity.mDataTab;
+            if (mDataView == null) {
+                TableRow row = new TableRow(this);
+                row.setLayoutParams(new TableRow.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                mDataView = new TextView(this);
+                mDataView.setFreezesText(true);
+                mDataView.setId(mSessions.size());
+                row.addView(mDataView);
+                mDataTable.addView(row);
+            }
             SharedPreferences prefs = nfcProxyActivity.prefs;
 
             if (prefs.getBoolean("screenPref", true)) {
@@ -243,6 +288,7 @@ public class MyHostApduService extends HostApduService {
     @Override
     public void onDeactivated(int reason) {
         System.out.println("onDeactivated():" + reason);
+        //disconnect PCD
         try {
             if (clientSocket != null) {
                 if (clientSocket.isConnected()) {
@@ -252,6 +298,12 @@ public class MyHostApduService extends HostApduService {
         } catch (Exception e) {
 
         }
+
+        //save process time
+        updateDataUI(getString(R.string.time) + ": " + (System.currentTimeMillis() - startTime));
+        log(getString(R.string.transaction_complete));
+        updateStatusUI(getString(R.string.transaction_complete));
+
         if (mDataView == null) {
             log("mDataView null"); //??? happens on quick reads? activity is recreated with
         } else {
@@ -259,9 +311,7 @@ public class MyHostApduService extends HostApduService {
             storeTransactionsAndBreak(requests, responses);
         }
 
-        updateDataUI(getString(R.string.time) + ": " + (System.currentTimeMillis() - startTime));
-        log(getString(R.string.transaction_complete));
-        updateStatusUI(getString(R.string.transaction_complete));
+
 
     }
 
@@ -298,9 +348,11 @@ public class MyHostApduService extends HostApduService {
                 SpannableString msg = new SpannableString("");
 
                 if (clientSocket == null || clientSocket.isConnected() == false) {
+                    //socket no connect
+                    //first touch PCD
+                    //save start time
                     startTime = System.currentTimeMillis();
 
-                    //socket no connect
                     log(getString(R.string.connecting_to_relay));
                     updateStatusUI(getString(R.string.connecting_to_relay));
 
@@ -370,6 +422,7 @@ public class MyHostApduService extends HostApduService {
 //                        meth = cls.getMethod("transceive", new Class[]{byte[].class});    //TODO: check against getMaxTransceiveLength()
 //                        pcdRequest = (byte[]) meth.invoke(ipcd, id);
 
+                            //save card id
                             msg = new SpannableString(tagStr + TextHelper.byteArrayToHexString(id));
                             msg.setSpan(new UnderlineSpan(), 0, 4, 0);
                             responses.putByteArray(String.valueOf(responses.size()), id);
@@ -378,6 +431,7 @@ public class MyHostApduService extends HostApduService {
 
                             //pcd send select PSE
                             pcdRequest = commandApdu;
+                            // save select PSE
                             msg = new SpannableString(pcdStr + TextHelper.byteArrayToHexString(pcdRequest));
                             msg.setSpan(new UnderlineSpan(), 0, 4, 0);
                             requests.putByteArray(String.valueOf(requests.size()), pcdRequest);
@@ -404,9 +458,16 @@ public class MyHostApduService extends HostApduService {
                             }
 
                             log("relay/card response: " + TextHelper.byteArrayToHexString(cardResponse));
-                            log(new String(cardResponse));
-
                             log("sending card response to PCD");
+
+                            if (mMask && cardResponse[0] == 0x70) {
+                                msg = new SpannableString(tagStr + getString(R.string.masked));
+                            } else {
+                                msg = new SpannableString(tagStr + TextHelper.byteArrayToHexString(cardResponse));
+                            }
+                            msg.setSpan(new UnderlineSpan(), 0, 4, 0);
+                            responses.putByteArray(String.valueOf(responses.size()), cardResponse);
+                            updateDataUI(msg);
 
                             myHostApduService.sendResponseApdu(cardResponse);
 
@@ -422,16 +483,23 @@ public class MyHostApduService extends HostApduService {
                         updateStatusUI("UnsupportedEncodingException");
                     }
 
-                    if (mDataView == null) {
-                        log("mDataView null"); //??? happens on quick reads? activity is recreated with
-                    } else {
-                        //Finish
-                        storeTransactionsAndBreak(requests, responses);
-                    }
+//                    if (mDataView == null) {
+//                        log("mDataView null"); //??? happens on quick reads? activity is recreated with
+//                    } else {
+//                        //Finish
+//                        storeTransactionsAndBreak(requests, responses);
+//                    }
                 } else {
                     //socket connected process req resp
-
                     pcdRequest = commandApdu;
+
+                    //save and show data from PCD
+                    log("response from PCD: " + TextHelper.byteArrayToHexString(pcdRequest));
+                    requests.putByteArray(String.valueOf(requests.size()), pcdRequest);
+                    msg = new SpannableString(pcdStr + TextHelper.byteArrayToHexString(pcdRequest));
+                    msg.setSpan(new UnderlineSpan(), 0, 4, 0);
+                    updateDataUI(msg);
+
                     IOUtils.sendSocket(pcdRequest, clientOS, mSecret, mEncrypt);
                     log("sent response to relay/card");
 
@@ -449,10 +517,8 @@ public class MyHostApduService extends HostApduService {
                     }
 
                     log("relay/card response: " + TextHelper.byteArrayToHexString(cardResponse));
-                    log(new String(cardResponse));
-
-
                     log("sending card response to PCD");
+
                     if (mMask && cardResponse[0] == 0x70) {
                         msg = new SpannableString(tagStr + getString(R.string.masked));
                     } else {
@@ -462,7 +528,7 @@ public class MyHostApduService extends HostApduService {
                     msg.setSpan(new UnderlineSpan(), 0, 4, 0);
                     responses.putByteArray(String.valueOf(responses.size()), cardResponse);
                     updateDataUI(msg);
-                    log("response from PCD: " + TextHelper.byteArrayToHexString(pcdRequest));
+
                     myHostApduService.sendResponseApdu(cardResponse);
 
 

@@ -118,7 +118,7 @@ public class NFCProxyActivity extends Activity {
     public boolean mEncrypt = true;
     public boolean mMask = false;
     public  SharedPreferences prefs=null;
-    private ActionMode.Callback mTransactionsActionModeCallback = new ActionMode.Callback() {
+    public ActionMode.Callback mTransactionsActionModeCallback = new ActionMode.Callback() {
 
         @Override
         public boolean onCreateActionMode(ActionMode mode, Menu menu) {
@@ -167,7 +167,7 @@ public class NFCProxyActivity extends Activity {
         }
     };
 
-    private ActionMode.Callback mSavedActionModeCallback = new ActionMode.Callback() {
+    public ActionMode.Callback mSavedActionModeCallback = new ActionMode.Callback() {
 
         @Override
         public boolean onCreateActionMode(ActionMode mode, Menu menu) {
