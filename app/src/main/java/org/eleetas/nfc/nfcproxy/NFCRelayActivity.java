@@ -36,6 +36,7 @@ import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.nfc.NdefMessage;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
+import android.nfc.tech.IsoDep;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Parcelable;
@@ -50,21 +51,54 @@ import android.widget.TabHost;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class NFCRelayActivity extends Activity {
+public class NFCRelayActivity extends Activity implements NfcCardReader.AccountCallback{
 
+    public static Tag tag;
     private static BasicTagTechnologyWrapper mTagTech = null;
+    private static ServerSocket mServerSocket = null;
     private TabHost mTabHost;
     private TextView mStatusView;
     private ScrollView mStatusTab;
-
-    private static ServerSocket mServerSocket = null;
     private SecretKey mSecret = null;
-
     private WakeLock mWakeLock;
-
     private boolean mDebugLogging = false;
     private int mPort = NFCVars.DEFAULT_PORT;
     private boolean mEncrypt = true;
+    public  SharedPreferences prefs=null;
+
+public static NFCRelayActivity me =null;
+    public static int READER_FLAGS =
+            NfcAdapter.FLAG_READER_NFC_A | NfcAdapter.FLAG_READER_SKIP_NDEF_CHECK;
+    public NfcCardReader mNfcCardReader;
+    @Override
+    public void onAccountReceived(final String account) {
+        // This callback is run on a background thread, but updates to UI elements must be performed
+        // on the UI thread.
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                //mAccountField.setText(account);
+            }
+        });
+    }
+
+    private void enableReaderMode() {
+        log("Enabling reader mode");
+        updateUIandScroll("Enabling reader mode");
+        NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
+        if (nfc != null) {
+            nfc.enableReaderMode(this, mNfcCardReader, READER_FLAGS, null);
+        }
+    }
+
+    private void disableReaderMode() {
+        log("Disabling reader mode");
+        updateUIandScroll("Disabling reader mode");
+        NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
+        if (nfc != null) {
+            nfc.disableReaderMode(this);
+        }
+    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -136,6 +170,12 @@ public class NFCRelayActivity extends Activity {
         } else {
             updateUIandScroll(ipAddr);
         }
+
+        mNfcCardReader = new NfcCardReader(this);
+
+        // Disable Android Beam and register our card reader callback
+        enableReaderMode();
+        me=this;
     }
 
     public void updateUIandScroll(CharSequence msg) {
@@ -154,9 +194,11 @@ public class NFCRelayActivity extends Activity {
     public void onResume() {
         super.onResume();
 
+        enableReaderMode();
+
         Intent intent = getIntent();
 
-        SharedPreferences prefs = getSharedPreferences(NFCVars.PREFERENCES, Context.MODE_PRIVATE);
+         prefs = getSharedPreferences(NFCVars.PREFERENCES, Context.MODE_PRIVATE);
         if (!prefs.getBoolean("relayPref", false)) {
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
                 prefs.edit().putBoolean("relayPref", true).commit();
@@ -200,6 +242,8 @@ public class NFCRelayActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+
+        disableReaderMode();
 
         if (mWakeLock != null) {
             mWakeLock.release();
@@ -279,7 +323,46 @@ public class NFCRelayActivity extends Activity {
         setIntent(intent);
     }
 
+    private SecretKey generateSecretKey(byte[] salt) throws IOException {
+        try {
+            SharedPreferences prefs = getSharedPreferences(NFCVars.PREFERENCES, Context.MODE_PRIVATE);
+            SecretKeyFactory f;
+            f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            KeySpec ks = new PBEKeySpec(prefs.getString("passwordPref", getString(R.string.default_password)).toCharArray(), salt, 2000, 256);
+            SecretKey tmp = f.generateSecret(ks);
+            return new SecretKeySpec(tmp.getEncoded(), "AES");
+        } catch (Exception e) {
+            log(e);
+            throw new IOException(e);
+        }
+    }
+
+    private void log(Object msg) {
+        if (mDebugLogging) {
+            LogHelper.log(this, msg);
+        }
+    }
+
+    /* (non-Javadoc)
+     * @see android.app.Activity#onSaveInstanceState(android.os.Bundle)
+     */
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt("tab", mTabHost.getCurrentTab());
+    }
+
+    /* (non-Javadoc)
+     * @see android.app.Activity#onRestoreInstanceState(android.os.Bundle)
+     */
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        mTabHost.setCurrentTab(savedInstanceState.getInt("tab"));
+    }
+
     public class ServerThread implements Runnable {
+        public IsoDep isoDep;
         private void updateUI(final CharSequence msg) {
             mStatusView.post(new Runnable() {
 
@@ -307,14 +390,14 @@ public class NFCRelayActivity extends Activity {
                 return;
             }
 //连接websocket connect
-            try {
-                WebSocketClient client = new WebSocketHelper(new URI("ws://localhost:8887"));
-                client.connect();
-            } catch (Exception e) {
-                log(e);
-                updateUI(e.toString());
-                return;
-            }
+//            try {
+//                WebSocketClient client = new WebSocketHelper(new URI("ws://localhost:8887"));
+//                client.connect();
+//            } catch (Exception e) {
+//                log(e);
+//                updateUI(e.toString());
+//                return;
+//            }
 
             Socket clientSocket = null;
             byte[] salt = new byte[8];
@@ -326,7 +409,7 @@ public class NFCRelayActivity extends Activity {
                     clientSocket = mServerSocket.accept();
                     log("Connected.");
 
-                    if (mTagTech != null && (clientSocket != null && clientSocket.isConnected())) {
+                    if (tag != null && (clientSocket != null && clientSocket.isConnected())) {
 
                         BufferedInputStream is = new BufferedInputStream(clientSocket.getInputStream());
                         BufferedOutputStream os = new BufferedOutputStream(clientSocket.getOutputStream());
@@ -387,46 +470,49 @@ public class NFCRelayActivity extends Activity {
 
 
                         try {
-                            if (!mTagTech.isConnected()) {
-                                mTagTech.connect();
-                            }
-                            ////////////////////////////////////
-                            //Start sending tag data
-
-                            //From IsoPcdA doc
-                            //@param data  - on the first call to transceive after PCD activation, the data sent to the method will be ignored
-                            IOUtils.sendSocket(mTagTech.getTag().getId(), os, mSecret, mEncrypt);
-
-                            byte[] response = null;
-                            do {
-                                response = IOUtils.readSocket(is, mSecret, mEncrypt);
-                                if (response == null) {
-                                    log("no response from PCD");
-                                    break;
+                              isoDep = IsoDep.get(tag);
+                            if (isoDep != null) {
+                                if (!isoDep.isConnected()) {
+                                    isoDep.connect();
                                 }
-                                log("response from PCD: " + TextHelper.byteArrayToHexString(response));
+                                ////////////////////////////////////
+                                //Start sending tag data
 
-                                log("sending response to card");
-                                response = mTagTech.transceive(response);
-                                log("response from card: " + TextHelper.byteArrayToHexString(response));
+                                //From IsoPcdA doc
+                                //@param data  - on the first call to transceive after PCD activation, the data sent to the method will be ignored
+                                IOUtils.sendSocket(isoDep.getTag().getId(), os, mSecret, mEncrypt);
 
-                                log("sending card response to PCD");
+                                byte[] response = null;
+                                do {
+                                    response = IOUtils.readSocket(is, mSecret, mEncrypt);
+                                    if (response == null) {
+                                        log("no response from PCD");
+                                        break;
+                                    }
+                                    log("response from PCD: " + TextHelper.byteArrayToHexString(response));
 
-                                IOUtils.sendSocket(response, os, mSecret, mEncrypt);
-                                log("wrote: " + new String(response));
-                            } while (response != null);
+                                    log("sending response to card");
+                                    response = isoDep.transceive(response);
+                                    log("response from card: " + TextHelper.byteArrayToHexString(response));
+
+                                    log("sending card response to PCD");
+
+                                    IOUtils.sendSocket(response, os, mSecret, mEncrypt);
+                                    log("wrote: " + new String(response));
+                                } while (response != null);
+                            }
                         } catch (final IllegalStateException e) {
                             log(e);
                             updateUI(getString(R.string.lost_tag));
-                            if (mTagTech != null) {
+                            if (isoDep != null) {
                                 try {
-                                    mTagTech.close();
+                                    isoDep.close();
                                 } catch (IOException e2) {
                                     log(e);
                                 } finally {
-                                    mTagTech = null;
+                                    isoDep = null;
                                 }
-                                log("mTagTech closed1");
+                                log("isoDep closed1");
                             }
                             if (clientSocket != null) {
                                 try {
@@ -446,15 +532,15 @@ public class NFCRelayActivity extends Activity {
                                 log(getString(R.string.crypto_error));
                             } else {
                                 updateUI(getString(R.string.lost_tag));
-                                if (mTagTech != null) {
+                                if (isoDep != null) {
                                     try {
-                                        mTagTech.close();
+                                        isoDep.close();
                                     } catch (IOException e2) {
                                         log(e);
                                     } finally {
-                                        mTagTech = null;
+                                        isoDep = null;
                                     }
-                                    log("mTagTech closed2");
+                                    log("isoDep closed2");
                                 }
                                 if (clientSocket != null) {
                                     try {
@@ -472,9 +558,9 @@ public class NFCRelayActivity extends Activity {
                         log("done reading...");
                     } else {
                         //不符合发送数据到卡片的条件
-                        if (mTagTech == null) {
+                        if (isoDep == null) {
                             updateUI(getString(R.string.nfcproxy_connected_no_tag));
-                            log("Closed connection to NFCRelay. mTagTech null");
+                            log("Closed connection to NFCRelay. isoDep null");
                             if (clientSocket != null) {
                                 //OutputStream os = clientSocket.getOutputStream();
                                 //os.write("NOT READY".getBytes("UTF-8"));
@@ -508,43 +594,5 @@ public class NFCRelayActivity extends Activity {
                 }
             }//while
         }
-    }
-
-    private SecretKey generateSecretKey(byte[] salt) throws IOException {
-        try {
-            SharedPreferences prefs = getSharedPreferences(NFCVars.PREFERENCES, Context.MODE_PRIVATE);
-            SecretKeyFactory f;
-            f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
-            KeySpec ks = new PBEKeySpec(prefs.getString("passwordPref", getString(R.string.default_password)).toCharArray(), salt, 2000, 256);
-            SecretKey tmp = f.generateSecret(ks);
-            return new SecretKeySpec(tmp.getEncoded(), "AES");
-        } catch (Exception e) {
-            log(e);
-            throw new IOException(e);
-        }
-    }
-
-    private void log(Object msg) {
-        if (mDebugLogging) {
-            LogHelper.log(this, msg);
-        }
-    }
-
-    /* (non-Javadoc)
-     * @see android.app.Activity#onSaveInstanceState(android.os.Bundle)
-     */
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        outState.putInt("tab", mTabHost.getCurrentTab());
-    }
-
-    /* (non-Javadoc)
-     * @see android.app.Activity#onRestoreInstanceState(android.os.Bundle)
-     */
-    @Override
-    protected void onRestoreInstanceState(Bundle savedInstanceState) {
-        super.onRestoreInstanceState(savedInstanceState);
-        mTabHost.setCurrentTab(savedInstanceState.getInt("tab"));
     }
 }

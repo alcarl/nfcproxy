@@ -118,6 +118,17 @@ public class NFCProxyActivity extends Activity {
     public boolean mEncrypt = true;
     public boolean mMask = false;
     public  SharedPreferences prefs=null;
+    public static NFCProxyActivity me=null;
+
+    private void disableReaderMode() {
+        log("Disabling reader mode");
+        updateStatus("Disabling reader mode");
+        NfcAdapter nfc = NfcAdapter.getDefaultAdapter(this);
+        if (nfc != null) {
+            nfc.disableReaderMode(this);
+        }
+    }
+
     public ActionMode.Callback mTransactionsActionModeCallback = new ActionMode.Callback() {
 
         @Override
@@ -245,6 +256,7 @@ public class NFCProxyActivity extends Activity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         log("onCreate start");
+        me=this;
         super.onCreate(savedInstanceState);
         setContentView(R.layout.proxy);
         getActionBar().setDisplayShowHomeEnabled(false);
@@ -371,7 +383,7 @@ public class NFCProxyActivity extends Activity {
     protected void onResume() {
         log("onResume start");
         super.onResume();
-
+        disableReaderMode();
         NfcAdapter adapter = NfcAdapter.getDefaultAdapter(this);
         if (adapter != null) {
             IntentFilter intentFilter[] = {new IntentFilter(NfcAdapter.ACTION_TAG_DISCOVERED)};

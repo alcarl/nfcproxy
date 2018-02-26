@@ -3,12 +3,12 @@ android {
     dexOptions {
         javaMaxHeapSize "4g"
     }
-    compileSdkVersion 23
+    compileSdkVersion 22
     buildToolsVersion '26.0.2'
     defaultConfig {
         applicationId "org.eleetas.nfc.nfcproxy"
-        minSdkVersion 23
-        targetSdkVersion 23
+        minSdkVersion 22
+        targetSdkVersion 22
     }
     buildTypes {
         release {

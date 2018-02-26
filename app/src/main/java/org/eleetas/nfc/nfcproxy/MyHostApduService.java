@@ -290,15 +290,11 @@ public class MyHostApduService extends HostApduService {
         System.out.println("onDeactivated():" + reason);
         //disconnect PCD
         try {
-            if (clientSocket != null) {
-                if (clientSocket.isConnected()) {
-                    clientSocket.close();
-                }
-            }
+             clientSocket.close();
         } catch (Exception e) {
 
         }
-
+        clientSocket=null;
         //save process time
         updateDataUI(getString(R.string.time) + ": " + (System.currentTimeMillis() - startTime));
         log(getString(R.string.transaction_complete));
