@@ -337,6 +337,23 @@ public static NFCRelayActivity me =null;
         }
     }
 
+    public void updateUI(final CharSequence msg) {
+        mStatusView.post(new Runnable() {
+
+            @Override
+            public void run() {
+                mStatusView.append(TextUtils.concat(msg, "\n"));
+            }
+        });
+        mStatusTab.post(new Runnable() {
+
+            @Override
+            public void run() {
+                mStatusTab.fullScroll(ScrollView.FOCUS_DOWN);
+            }
+        });
+
+    }
     private void log(Object msg) {
         if (mDebugLogging) {
             LogHelper.log(this, msg);

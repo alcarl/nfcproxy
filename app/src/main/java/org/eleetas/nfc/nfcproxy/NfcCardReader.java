@@ -142,7 +142,7 @@ public class NfcCardReader implements NfcAdapter.ReaderCallback {
         Log.i(TAG, "New tag discovered");
 
         String TagInfo = getTagInfo(tag);
-        NFCRelayActivity.me.updateUIandScroll(TagInfo);
+        NFCRelayActivity.me.updateUI(TagInfo);
 
         // Android's Host-based Card Emulation (HCE) feature implements the ISO-DEP (ISO 14443-4)
         // protocol.
